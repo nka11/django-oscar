@@ -110,6 +110,13 @@ def get_classes(module_label, classnames):
         ImportError: If the attempted import of a class raises an
             ``ImportError``, it is re-raised
     """
+    if '.' not in module_label:
+        # Importing from top-level modules is not supported, e.g.
+        # get_class('shipping', 'Scale'). That should be easy to fix,
+        # but @maikhoepfel had a stab and could not get it working reliably.
+        # Overridable classes in a __init__.py might not be a good idea anyway.
+        raise ValueError(
+            "Importing from top-level modules is not supported")
 
     # import from Oscar package (should succeed in most cases)
     # e.g. 'oscar.apps.dashboard.catalogue.forms'
@@ -121,19 +128,25 @@ def get_classes(module_label, classnames):
     # e.g. split 'dashboard.catalogue.forms' in 'dashboard.catalogue', 'forms'
     # It is assumed that any imported module is only ever one level below
     # package, e.g. 'dashboard.catalogue.forms.widgets' will break
-    if '.' in module_label:
-        package, module = module_label.rsplit('.', 1)
-    else:
-        # Importing from top-level modules is not supported, e.g.
-        # get_class('shipping', 'Scale'). That should be easy to fix,
-        # but @maikhoepfel had a stab and could not get it working reliably.
-        # Overridable classes in a __init__.py might not be a good idea anyway.
-        raise ValueError(
-            "Importing from top-level modules is not supported")
+    package = module_label
+    module = ''
+    try:
+        installed_apps_entry = _get_installed_apps_entry(package)
+    except AppNotFoundError:
+        package, new_module = module_label.rsplit('.', 1)
+        module = new_module + '.' + module
+        try:
+            installed_apps_entry = _get_installed_apps_entry(package)
+        except AppNotFoundError:
+            if '.' in package:
+                package, second_module = package.rsplit('.', 1)
+                module = second_module + '.' + module
+                installed_apps_entry = _get_installed_apps_entry(package)
+            else:
+                raise
 
     # returns e.g. 'oscar.apps.dashboard.catalogue',
     # 'yourproject.apps.dashboard.catalogue' or 'dashboard.catalogue'
-    installed_apps_entry = _get_installed_apps_entry(package)
     if installed_apps_entry.startswith('oscar.apps.'):
         # The entry is obviously an Oscar one, we don't import again
         local_module = None
