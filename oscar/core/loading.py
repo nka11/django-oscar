@@ -129,21 +129,17 @@ def get_classes(module_label, classnames):
     # It is assumed that any imported module is only ever one level below
     # package, e.g. 'dashboard.catalogue.forms.widgets' will break
     package = module_label
-    module = ''
-    try:
-        installed_apps_entry = _get_installed_apps_entry(package)
-    except AppNotFoundError:
-        package, new_module = module_label.rsplit('.', 1)
+    module = installed_apps_entry = ''
+    # FIXME Bug around module and dot handling. Maybe dont rsplit
+    while '.' in package:
+        package, new_module = package.rsplit('.', 1)
         module = new_module + '.' + module
         try:
             installed_apps_entry = _get_installed_apps_entry(package)
         except AppNotFoundError:
-            if '.' in package:
-                package, second_module = package.rsplit('.', 1)
-                module = second_module + '.' + module
-                installed_apps_entry = _get_installed_apps_entry(package)
-            else:
-                raise
+            pass
+    if not installed_apps_entry:
+        raise AppNotFoundError
 
     # returns e.g. 'oscar.apps.dashboard.catalogue',
     # 'yourproject.apps.dashboard.catalogue' or 'dashboard.catalogue'
